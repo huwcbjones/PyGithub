@@ -36,24 +36,24 @@
 # along with PyGithub. If not, see <http://www.gnu.org/licenses/>.             #
 #                                                                              #
 ################################################################################
-
+from typing import Sized
 from urllib.parse import parse_qs
 
 
 class PaginatedListBase:
     def __init__(self):
-        self.__elements = list()
+        self._elements = list()
 
     def __getitem__(self, index):
         assert isinstance(index, (int, slice))
         if isinstance(index, int):
             self.__fetchToIndex(index)
-            return self.__elements[index]
+            return self._elements[index]
         else:
             return self._Slice(self, index)
 
     def __iter__(self):
-        for element in self.__elements:
+        for element in self._elements:
             yield element
         while self._couldGrow():
             newElements = self._grow()
@@ -61,15 +61,15 @@ class PaginatedListBase:
                 yield element
 
     def _isBiggerThan(self, index):
-        return len(self.__elements) > index or self._couldGrow()
+        return len(self._elements) > index or self._couldGrow()
 
     def __fetchToIndex(self, index):
-        while len(self.__elements) <= index and self._couldGrow():
+        while len(self._elements) <= index and self._couldGrow():
             self._grow()
 
     def _grow(self):
         newElements = self._fetchNextPage()
-        self.__elements += newElements
+        self._elements += newElements
         return newElements
 
     class _Slice:
@@ -92,7 +92,7 @@ class PaginatedListBase:
             return self.__stop is not None and index >= self.__stop
 
 
-class PaginatedList(PaginatedListBase):
+class PaginatedList(PaginatedListBase, Sized):
     """
     This class abstracts the `pagination of the API <http://developer.github.com/v3/#pagination>`_.
 
@@ -144,6 +144,12 @@ class PaginatedList(PaginatedListBase):
         self._reversed = False
         self.__totalCount = None
 
+    def __len__(self) -> int:
+        print(self._elements)
+        if self._elements and not self._couldGrow():
+            return len(self._elements)
+        return self.totalCount
+
     @property
     def totalCount(self):
         if not self.__totalCount:
@@ -163,7 +169,9 @@ class PaginatedList(PaginatedListBase):
             else:
                 links = self.__parseLinkHeader(headers)
                 lastUrl = links.get("last")
-                self.__totalCount = int(parse_qs(lastUrl)["page"][0])
+                print(parse_qs(lastUrl))
+                query_string = lastUrl.split("?", 1)[1]
+                self.__totalCount = int(parse_qs(query_string)["page"][0])
         return self.__totalCount
 
     def _getLastPageUrl(self):
